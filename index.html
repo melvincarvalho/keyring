@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keyring</title>
+<meta name="description" content="Keyring: named testnet identities kept in this browser. One module the apps share. Testnet keys only, stored plain.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Keyring">
+<meta property="og:title" content="Keyring: named testnet identities in the browser">
+<meta property="og:description" content="Add a key under a name, pick it from any app. Testnet keys only, stored plain in this browser.">
+<meta property="og:url" content="https://melvincarvalho.github.io/keyring/">
+<meta property="og:image" content="https://melvincarvalho.github.io/keyring/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Keyring: named testnet identities in the browser">
+<meta name="twitter:description" content="Add a key under a name, pick it from any app. Testnet keys only, stored plain.">
+<meta name="twitter:image" content="https://melvincarvalho.github.io/keyring/og-card.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2232%22 fill=%22none%22 stroke=%22%231a1a1a%22 stroke-width=%2212%22/><circle cx=%2250%22 cy=%2218%22 r=%229%22 fill=%22%231a1a1a%22/></svg>">
+<style>
+  :root { --bg: #fafaf7; --fg: #1a1a1a; --mute: #6b6b66; --line: #d8d8d2; --card: #fff; --warn: #a33; --accent: #1a1a1a; --accent-fg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #111; --fg: #eee; --mute: #999; --line: #333; --card: #1a1a1a; --warn: #ff7b7b; --accent: #eee; --accent-fg: #111; } }
+  :root[data-theme="dark"] { --bg: #111; --fg: #eee; --mute: #999; --line: #333; --card: #1a1a1a; --warn: #ff7b7b; --accent: #eee; --accent-fg: #111; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 40rem; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: .5rem 0 0; }
+  h2 { font-size: 1.1rem; margin: 1.5rem 0 .5rem; }
+  .lede, .mute { color: var(--mute); }
+  .warn { color: var(--warn); }
+  input, textarea { width: 100%; padding: 8px; font: 14px/1.4 ui-monospace, monospace; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: .5rem 0; }
+  .row > input { flex: 1 1 10rem; }
+  button { padding: 6px 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button.go { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .key { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: .5rem 0; overflow-wrap: anywhere; }
+  .key b { font-size: 16px; }
+  .mono { font: 13px/1.6 ui-monospace, monospace; }
+  .err { color: var(--warn); min-height: 1.5em; }
+  details { margin: .25rem 0; }
+  summary { cursor: pointer; color: var(--mute); font-size: 14px; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow: auto; font-size: 13px; }
+  footer { margin: 2rem 0 1rem; color: var(--mute); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Keyring</h1>
+  <p class="lede">Named testnet identities kept in this browser. Add a key under a name here, pick it from any app that imports the module.</p>
+  <p class="warn">Keys are stored plain in localStorage. Testnet only. Never add a key that holds real coins.</p>
+
+  <h2>Add a key</h2>
+  <div class="row">
+    <input id="name" placeholder="name, e.g. alice" autocomplete="off">
+    <input id="key" placeholder="hex, nsec or WIF" autocomplete="off" spellcheck="false">
+    <button class="go" id="add">Add</button>
+  </div>
+  <div class="err" id="err"></div>
+
+  <h2>Keys <span class="mute" id="count"></span></h2>
+  <div id="keys"></div>
+  <div class="row">
+    <button id="export">Export JSON</button>
+    <button id="import">Import JSON</button>
+    <button id="clear">Remove all</button>
+  </div>
+  <textarea id="json" hidden rows="6" spellcheck="false"></textarea>
+
+  <h2>Use it from an app</h2>
+<pre>import { list, get, add } from 'https://melvincarvalho.github.io/keyring/keyring.js';
+
+for (const k of list()) console.log(k.name, k.priv);   // priv is 64 hex chars
+const alice = get('alice');
+window.addEventListener('keyring', () => { /* changed in this tab */ });
+window.addEventListener('storage', () => { /* changed in another tab */ });</pre>
+  <p class="mute">Every app on the same origin sees the same keyring. Apps on other origins each have their own copy, so export and import to move keys across.</p>
+
+  <footer><a href="https://github.com/melvincarvalho/keyring">Source</a>. Nothing leaves this page.</footer>
+</main>
+
+<script type="module">
+import { list, add, remove, rename, clear, info, STORAGE_KEY } from './keyring.js';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function render() {
+  const keys = list();
+  $('count').textContent = keys.length ? `(${keys.length})` : '';
+  $('keys').innerHTML = keys.length ? '' : '<p class="mute">No keys yet.</p>';
+  for (const k of keys) {
+    const i = info(k.priv);
+    const el = document.createElement('div');
+    el.className = 'key';
+    el.innerHTML = `<div class="row"><b>${esc(k.name)}</b><span class="mono mute">${i.npub.slice(0, 16)}…</span>
+        <span style="flex:1"></span>
+        <button data-copy="${i.npub}">npub</button><button data-copy="${i.tb1p}">tb1p</button><button data-copy="${k.priv}">hex</button><button data-copy="${i.nsec}">nsec</button>
+        <button data-rename="${esc(k.name)}">rename</button><button data-remove="${esc(k.name)}">remove</button></div>
+      <details><summary>details</summary><div class="mono">
+        npub ${i.npub}<br>tb1p ${i.tb1p}<br>bc1p ${i.bc1p}<br>xonly ${i.xonly}</div></details>`;
+    $('keys').appendChild(el);
+  }
+}
+$('keys').onclick = async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.copy) { await navigator.clipboard.writeText(b.dataset.copy); const t = b.textContent; b.textContent = 'copied'; setTimeout(() => b.textContent = t, 800); }
+  if (b.dataset.remove) remove(b.dataset.remove);
+  if (b.dataset.rename) { const name = b.closest('.key').querySelector('b'); const input = document.createElement('input'); input.value = b.dataset.rename; name.replaceWith(input); input.focus(); input.onblur = input.onchange = () => { try { rename(b.dataset.rename, input.value); } catch (err) { $('err').textContent = err.message; } render(); }; }
+};
+$('add').onclick = () => {
+  $('err').textContent = '';
+  try { add($('name').value, $('key').value); $('name').value = ''; $('key').value = ''; } catch (e) { $('err').textContent = e.message; }
+};
+$('key').onkeydown = (e) => { if (e.key === 'Enter') $('add').click(); };
+$('export').onclick = () => { $('json').hidden = false; $('json').value = JSON.stringify(list(), null, 2); $('json').select(); };
+$('import').onclick = () => {
+  if ($('json').hidden) { $('json').hidden = false; $('json').value = ''; $('json').placeholder = 'paste [{"name":"…","priv":"…"}] then press Import again'; $('json').focus(); return; }
+  $('err').textContent = '';
+  try {
+    const arr = JSON.parse($('json').value);
+    if (!Array.isArray(arr)) throw new Error('expected a JSON array');
+    for (const k of arr) add(k.name, k.priv);
+    $('json').hidden = true;
+  } catch (e) { $('err').textContent = e.message; }
+};
+$('clear').onclick = () => { if (list().length === 0) return; $('clear').textContent === 'Really remove all?' ? (clear(), $('clear').textContent = 'Remove all') : ($('clear').textContent = 'Really remove all?', setTimeout(() => $('clear').textContent = 'Remove all', 3000)); };
+window.addEventListener(STORAGE_KEY, render);
+window.addEventListener('storage', (e) => { if (e.key === STORAGE_KEY) render(); });
+render();
+</script>
+</body>
+</html>
